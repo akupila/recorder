@@ -88,7 +88,7 @@ type Recorder struct {
 var _ http.RoundTripper = (*Recorder)(nil)
 
 func (r *Recorder) loadFromDisk() {
-	if r.Mode != Auto && r.Mode != ReplayOnly {
+	if r.Mode == Passthrough {
 		return
 	}
 	if !strings.HasSuffix(r.Filename, ".yml") {

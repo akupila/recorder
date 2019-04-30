@@ -294,8 +294,7 @@ func TestRoundTrip_Data(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	rec := recorder.New("testdata/passthrough")
-	rec.Mode = recorder.Passthrough
+	rec := recorder.New("testdata/data")
 
 	cli := &http.Client{Transport: rec}
 
