@@ -420,3 +420,29 @@ func TestRemoveResponseHeader(t *testing.T) {
 		t.Errorf("Saved file contains cookie header\n\n%s", string(saved))
 	}
 }
+
+func TestFilterResponse(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("oh, hello there!")) // nolint: errcheck
+	}))
+	defer ts.Close()
+
+	rec := recorder.New("testdata/req-response-filter", func(e *recorder.Entry) {
+		e.Response.Body = strings.Replace(e.Response.Body, "hello", "hi", -1)
+	})
+	cli := &http.Client{Transport: rec}
+
+	resp, err := cli.Get(ts.URL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBody := "oh, hi there!"
+	if !bytes.Equal(body, []byte(wantBody)) {
+		t.Errorf("Returned body does not match\nGot  %q\nWant %q", string(body), wantBody)
+	}
+}

@@ -179,15 +179,14 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		StatusCode: resp.StatusCode,
 		Headers:    flattenHeader(resp.Header),
 	}
-	var bodyIn bytes.Buffer
-	if _, err := io.Copy(&bodyIn, resp.Body); err != nil {
+	bodyIn, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 	if err := resp.Body.Close(); err != nil {
 		return nil, err
 	}
-	in.Body = bodyIn.String()
-	resp.Body = ioutil.NopCloser(&bodyIn)
+	in.Body = string(bodyIn)
 
 	// Construct entry
 	e := Entry{Request: out, Response: in}
@@ -195,6 +194,14 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Apply filters
 	for _, apply := range r.Filters {
 		apply(&e)
+	}
+
+	// Reconstruct response after filters have been processed
+	resp = &http.Response{
+		StatusCode:    in.StatusCode,
+		Header:        expandHeader(in.Headers),
+		Body:          ioutil.NopCloser(strings.NewReader(in.Body)),
+		ContentLength: int64(len(in.Body)),
 	}
 
 	// Save entry
