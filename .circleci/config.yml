@@ -1,0 +1,33 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: golang:1.12.4
+    working_directory: /src
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - mod-v1-{{ checksum "go.mod" }}
+      - run:
+          name: Download dependencies
+          command: |
+            go mod download
+      - save_cache:
+          key: mod-v1-{{ checksum "go.mod" }}
+          paths:
+            - /go/pkg/mod
+      - run:
+          name: Test
+          command: |
+            go test -cover -race ./... 
+      - run:
+          name: Install golangci-lnit
+          environment:
+            GOLANGCI_LINT_TAG: v1.16.0
+          command: |
+            curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -d -b $GOPATH/bin $GOLANGCI_LINT_TAG
+      - run:
+          name: Lint
+          command: |
+            golangci-lint run --enable-all -v ./...
