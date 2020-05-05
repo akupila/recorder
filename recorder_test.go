@@ -516,3 +516,57 @@ func TestSelect(t *testing.T) {
 		t.Errorf("Expected 5 select calls, but got %d", selectCalls)
 	}
 }
+
+func TestOncePerCall(t *testing.T) {
+	entries := []recorder.Entry{
+		{
+			Request:  &recorder.Request{Method: "GET", URL: "http://foo.com/bar"},
+			Response: &recorder.Response{Body: "1"},
+		},
+		{
+			Request:  &recorder.Request{Method: "GET", URL: "http://foo.com/bar"},
+			Response: &recorder.Response{Body: "2"},
+		},
+		{
+			Request:  &recorder.Request{Method: "GET", URL: "http://foo.com/bar"},
+			Response: &recorder.Response{Body: "3"},
+		},
+		{
+			Request:  &recorder.Request{Method: "GET", URL: "http://foo.com/baz"},
+			Response: &recorder.Response{Body: "baz!"},
+		},
+		{
+			Request:  &recorder.Request{Method: "PUT", URL: "http://foo.com/baz"},
+			Response: &recorder.Response{Body: "putbaz!"},
+		},
+	}
+
+	testcases := []struct {
+		Method, URL, ExpectedBody string
+	}{
+		{"GET", "http://foo.com/bar", "1"},
+		{"GET", "http://foo.com/bar", "2"},
+		{"GET", "http://foo.com/bar", "3"},
+		{"GET", "http://foo.com/bar", ""}, // no matching request
+		{"GET", "http://foo.com/baz", "baz!"},
+		{"GET", "http://foo.com/baz", ""}, // no matching request
+		{"PUT", "http://foo.com/baz", "putbaz!"},
+		{"PUT", "http://foo.com/baz", ""}, // no matching request
+	}
+
+	var sel recorder.OncePerCall
+
+	for _, test := range testcases {
+		e, ok := sel.Select(entries, httptest.NewRequest(test.Method, test.URL, nil))
+		if test.ExpectedBody == "" {
+			if ok {
+				t.Errorf("Expected no matching entry, but got %v", e)
+			}
+		} else if !ok {
+			t.Errorf("Expected a matching entry, but didn't get one")
+		} else if e.Response.Body != test.ExpectedBody {
+			t.Errorf("Entry mismatch. Expected body %q, but got %q",
+				test.ExpectedBody, e.Response.Body)
+		}
+	}
+}

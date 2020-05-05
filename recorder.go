@@ -345,3 +345,31 @@ func expandHeader(in map[string]string) http.Header {
 	}
 	return out
 }
+
+// OncePerCall is a Selector that selects entries based on the method and URL,
+// but it will only select any given entry at most once.
+type OncePerCall struct {
+	mu   sync.Mutex
+	used map[int]bool
+}
+
+// Select implements Selector and chooses an entry.
+func (s *OncePerCall) Select(entries []Entry, req *http.Request) (Entry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.used == nil {
+		s.used = map[int]bool{}
+	}
+	for i, e := range entries {
+		if !strings.EqualFold(e.Request.Method, req.Method) {
+			continue
+		} else if !strings.EqualFold(e.Request.URL, req.URL.String()) {
+			continue
+		}
+		if !s.used[i] {
+			s.used[i] = true
+			return e, true
+		}
+	}
+	return Entry{}, false
+}
