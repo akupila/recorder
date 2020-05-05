@@ -446,3 +446,73 @@ func TestFilterResponse(t *testing.T) {
 		t.Errorf("Returned body does not match\nGot  %q\nWant %q", string(body), wantBody)
 	}
 }
+
+type SelectorFunc func(entries []recorder.Entry, req *http.Request) (recorder.Entry, bool)
+
+func (f SelectorFunc) Select(entries []recorder.Entry, req *http.Request) (recorder.Entry, bool) {
+	return f(entries, req)
+}
+
+func TestSelect(t *testing.T) {
+	// This test verifies that the Select function is being used if provided. It
+	// sets up a recorder and test server and records 5 different calls to the
+	// server.
+	//
+	// It then switches to playback mode and configures a selector that will
+	// always choose the first entry, even if it doesn't otherwise match the
+	// incoming request. The test then issues the same 5 different calls to the
+	// recorder and verifies that it gets back the initial call repeated over and
+	// over.
+
+	serverCalls := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		serverCalls++
+		fmt.Fprintf(w, "call %d", serverCalls)
+	}))
+	defer ts.Close()
+
+	rec := recorder.New("testdata/select")
+	rec.Mode = recorder.Record
+
+	cli := &http.Client{Transport: rec}
+	for i := 1; i <= 5; i++ {
+		cli.Get(fmt.Sprintf("%s/load/%d", ts.URL, i))
+	}
+
+	if serverCalls != 5 {
+		t.Fatalf("Expect to have made 5 calls to the server, but only made %d", serverCalls)
+	}
+
+	// Now switch to replay only, with our custom selector.
+	rec.Mode = recorder.ReplayOnly
+	selectCalls := 0
+	rec.Selector = SelectorFunc(func(entries []recorder.Entry, req *http.Request) (recorder.Entry, bool) {
+		selectCalls++
+		expectedPath := fmt.Sprintf("/load/%d", selectCalls)
+		if req.URL.Path != expectedPath {
+			t.Errorf("Selected select call %d to be requesting path %q but got %q",
+				selectCalls, expectedPath, req.URL.Path)
+		}
+		return entries[0], true
+	})
+
+	for i := 1; i <= 5; i++ {
+		resp, err := cli.Get(fmt.Sprintf("%s/load/%d", ts.URL, i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		payload, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Our select always chooses the first call, so even though we're loading
+		// different URLs, we should always get back the recorded value for call 1.
+		if string(payload) != "call 1" {
+			t.Errorf("Expected replayed request to respond with `call 1` but got %#q", payload)
+		}
+	}
+	if selectCalls != 5 {
+		t.Errorf("Expected 5 select calls, but got %d", selectCalls)
+	}
+}

@@ -47,6 +47,11 @@ const (
 	Passthrough
 )
 
+// Selector chooses a recorded Entry to response to a given request.
+type Selector interface {
+	Select(entries []Entry, req *http.Request) (Entry, bool)
+}
+
 // New is a convenience function for creating a new recorder.
 func New(filename string, filters ...Filter) *Recorder {
 	return &Recorder{
@@ -79,6 +84,12 @@ type Recorder struct {
 	// Transport to use for real request.
 	// If nil, http.DefaultTransport is used.
 	Transport http.RoundTripper
+
+	// An optional Select function may be specified to control which recorded
+	// Entry is selected to respond to a given request. If nil, the default
+	// selection is used that picks the first recorded response with a matching
+	// method and url.
+	Selector Selector
 
 	once    sync.Once
 	index   int
@@ -129,7 +140,13 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.once.Do(r.loadFromDisk)
 
 	if r.Mode == Auto || r.Mode == ReplayOnly {
-		e, ok := r.Lookup(req.Method, req.URL.String())
+		var e Entry
+		var ok bool
+		if r.Selector != nil {
+			e, ok = r.Selector.Select(r.entries, req)
+		} else {
+			e, ok = r.Lookup(req.Method, req.URL.String())
+		}
 		if ok {
 			resp := e.Response
 			return &http.Response{
