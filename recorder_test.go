@@ -476,7 +476,7 @@ func TestSelect(t *testing.T) {
 
 	cli := &http.Client{Transport: rec}
 	for i := 1; i <= 5; i++ {
-		cli.Get(fmt.Sprintf("%s/load/%d", ts.URL, i))
+		_, _ = cli.Get(fmt.Sprintf("%s/load/%d", ts.URL, i))
 	}
 
 	if serverCalls != 5 {
@@ -558,7 +558,7 @@ func TestOncePerCall(t *testing.T) {
 
 	for _, test := range testcases {
 		e, ok := sel.Select(entries, httptest.NewRequest(test.Method, test.URL, nil))
-		if test.ExpectedBody == "" {
+		if test.ExpectedBody == "" { // nolint: gocritic
 			if ok {
 				t.Errorf("Expected no matching entry, but got %v", e)
 			}
