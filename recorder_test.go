@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"testing"
 
@@ -568,5 +569,25 @@ func TestOncePerCall(t *testing.T) {
 			t.Errorf("Entry mismatch. Expected body %q, but got %q",
 				test.ExpectedBody, e.Response.Body)
 		}
+	}
+}
+
+func TestNewWithExistingEmptyFileDoesntCrashIssue2(t *testing.T) {
+	const emptyFile = "testdata/empty.yml"
+	if err := os.MkdirAll(path.Dir(emptyFile), 0755); err != nil {
+		t.Fatal("mkdir:", err)
+	}
+	if f, err := os.OpenFile(emptyFile, os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+		t.Fatal("creating the empty file:", err)
+	} else {
+		f.Close()
+	}
+
+	rec := recorder.New(emptyFile)
+	client := &http.Client{Transport: rec}
+
+	_, err := client.Get("https://jsonplaceholder.typicode.com/posts/1")
+	if err != nil {
+		t.Fatal("get:", err)
 	}
 }

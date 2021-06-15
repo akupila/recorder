@@ -109,6 +109,9 @@ func (r *Recorder) loadFromDisk() {
 	if err == nil {
 		values := bytes.Split(existing, []byte("\n---\n"))
 		for i, val := range values {
+			if len(val) == 0 {
+				continue
+			}
 			var e Entry
 			if err := yaml.Unmarshal(val, &e); err != nil {
 				panic(fmt.Sprintf("unmarshal session %d from %s: %v", i, r.Filename, err))
